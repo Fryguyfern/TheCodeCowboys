@@ -7,19 +7,28 @@ namespace PromptQuest.Services {
 		PQActionResult PlayerAttack(GameState gameState);
 		PQActionResult PlayerUseHealthPotion(GameState gameState);
 		PQActionResult EnemyAttack(GameState gameState);
+		Enemy GetEnemy();
 	}
 
-	public class CombatService : ICombatService{
+	public class CombatService:ICombatService {
 
-		/// <summary>Initiates combat between the player and a default enemy and updates the game state. </summary>
+		/// <summary>Initiates combat between the player and an enemy and updates the game state. </summary>
 		public void StartCombat(GameState gameState) {
 			gameState.InCombat = true;
 			gameState.IsPlayersTurn = true; // Player always goes first, for now.
-			gameState.Enemy = GetDefaultEnemy();
-			string message = $"You were attacked by an {gameState.Enemy.Name}!"; // Let the user know that combat started.
-			gameState.MessageLog.Add(message); // This gets loaded into the view without a PQActionResult because GetGameState() is called after this method.
+			Enemy enemy = GetEnemy();
+			gameState.Enemy = GetEnemy();
+			gameState.Player.HealthPotions = 2; // Set player's health potions to 2 when combat starts (Temporary)
+			string message = $"The {gameState.Enemy.Name} attacked!"; // Let the user know that combat started.
 		}
 
+		/// <summary>Respawns the player by resetting their health and potions, and updates the game state.</summary>
+		public void RespawnPlayer(GameState gameState)
+		{
+			gameState.Player.CurrentHealth = gameState.Player.MaxHealth; // Reset health to max
+			gameState.InCombat = false; // Player is no longer in combat
+			gameState.IsPlayersTurn = false; // It is not the player's turn
+		}
 		#region Player Action Methods
 
 		/// <summary> Calculates the damage that the player does to the enemy, updates the game state, then returns an ActionResult.</summary>
@@ -34,14 +43,13 @@ namespace PromptQuest.Services {
 			// Return the result to the user.
 			string message = $"You attacked the {gameState.Enemy.Name} for {damage} damage";
 			// Check if enemy died.
-			if(gameState.Enemy.CurrentHealth < 1) {
+			if(gameState.Enemy.CurrentHealth <= 0) {
 				gameState.InCombat = false; // Enemy is dead, combat has ended.
 				gameState.IsPlayersTurn = false; // Zero this field out because combat is over.
 				message += $", you have defeated the {gameState.Enemy.Name}."; // Let them know in the same message.
 			}
 			// Enemy didn't die, so now it is their turn.
 			gameState.IsPlayersTurn = false;
-			gameState.MessageLog.Add(message);
 			// Return an action result with the message describing what happened.
 			PQActionResult actionResult = gameState.ToActionResult();
 			actionResult.Message = message;
@@ -54,18 +62,14 @@ namespace PromptQuest.Services {
 			string message;
 			// If player has no potions, don't let them heal.
 			if(gameState.Player.HealthPotions <= 0) {
-				// Return an action result with a message describing what happened.
 				message = "You have no Health Potions!";
-				gameState.MessageLog.Add(message);
 				actionResult = gameState.ToActionResult();
 				actionResult.Message = message;
 				return actionResult;
 			}
 			// If player is already at max health, don't let them heal.
 			if(gameState.Player.CurrentHealth == gameState.Player.MaxHealth) {
-				// Return an action result with a message describing what happened.
 				message = "You are already at max health!";
-				gameState.MessageLog.Add(message);
 				actionResult = gameState.ToActionResult();
 				actionResult.Message = message;
 				return actionResult;
@@ -75,14 +79,13 @@ namespace PromptQuest.Services {
 			gameState.Player.CurrentHealth += 5;
 			message = $"You healed to {gameState.Player.CurrentHealth} HP!";
 			// If the potion put the player's health above maximum, set it to maximum.
-			if(gameState.Player.CurrentHealth > gameState.Player.MaxHealth) {
+			if(gameState.Player.CurrentHealth >= gameState.Player.MaxHealth) {
 				gameState.Player.CurrentHealth = gameState.Player.MaxHealth;
 				message = $"You healed to max HP!"; // Overwrite current message.
 			}
 			// Healing cannot possibly end combat, so no reason to check if combat has ended.
 			// Healing does not end the player's turn.
 			// Return an action result with the message describing what happened.
-			gameState.MessageLog.Add(message);
 			actionResult = gameState.ToActionResult();
 			actionResult.Message = message;
 			return actionResult;
@@ -111,7 +114,6 @@ namespace PromptQuest.Services {
 			}
 			// Player didn't die, so now it is their turn.
 			gameState.IsPlayersTurn = true;
-			gameState.MessageLog.Add(message);
 			// Return an action result with the message describing what happened.
 			PQActionResult actionResult = gameState.ToActionResult();
 			actionResult.Message = message;
@@ -122,18 +124,40 @@ namespace PromptQuest.Services {
 
 		#region Helper Methods
 
-		/// <summary>Generatees a default Enemy, updates the game state, then returns the Enemy.</summary>
-		private Enemy GetDefaultEnemy() {
-			// Default enemy: Ancient Orc
+		/// <summary>Generatees an Enemy, updates the game state, then returns the Enemy.</summary>
+		public Enemy GetEnemy() {
 			Enemy enemy = new Enemy();
-			enemy.Name = "Ancient Orc";
-			enemy.ImageUrl = "/images/PlaceholderAncientOrc.png";
-			enemy.MaxHealth = 10;
-			enemy.CurrentHealth = 10;
-			enemy.Attack = 3;
+			Random random = new Random();
+			int enemyType = random.Next(1,4); // Generates a number between 1 and 3
+			switch(enemyType) {
+				case 1:
+					enemy.Name = "Ancient Orc";
+					enemy.ImageUrl = "/images/PlaceholderAncientOrc.png";
+					enemy.MaxHealth = 10;
+					enemy.CurrentHealth = 10;
+					enemy.Attack = 2;
+					enemy.Defense = 1;
+					break;
+				case 2:
+					enemy.Name = "Decrepit Centaur";
+					enemy.ImageUrl = "/images/PlaceholderDecrepitCentaur.png";
+					enemy.MaxHealth = 10;
+					enemy.CurrentHealth = 10;
+					enemy.Attack = 3;
+					enemy.Defense = 0;
+					break;
+				case 3:
+					enemy.Name = "Rotting Zombie";
+					enemy.ImageUrl = "/images/PlaceholderRottingZombie.png";
+					enemy.MaxHealth = 8;
+					enemy.CurrentHealth = 8;
+					enemy.Attack = 2;
+					enemy.Defense = 2;
+					break;
+			}
 			return enemy;
 		}
 
-		#endregion Helper Methods - End
+			#endregion Helper Methods - End
 	}
 }

@@ -4,14 +4,16 @@ using PromptQuest.Services;
 
 namespace PromptQuest.Controllers {
 
-	public class GameController:Controller {
+	public class GameController : Controller {
 		private readonly ILogger<GameController> _logger;
 		private readonly IGameService _gameService;
 		public GameController(ILogger<GameController> logger, IGameService gameService) {
 			_logger = logger;
 			_gameService = gameService;
 		}
-
+		public IActionResult About() {
+			return View();
+		}
 		[HttpGet]
 		public IActionResult CreateCharacter() {
 			return View();
@@ -20,19 +22,24 @@ namespace PromptQuest.Controllers {
 		[HttpPost]
 		public IActionResult CreateCharacter(Player player) {
 			// Default stats for now.
-			player.MaxHealth = 10;
-			player.CurrentHealth = 10;
+			player.MaxHealth = 15;
+			player.CurrentHealth = 15;
 			player.HealthPotions = 2;
-			player.Attack = 1;
+			player.Attack = 3;
 			if(ModelState.IsValid) { // Character created succesfully
-				_gameService.ResetGameState(); // Wipe any session data becuase they are starting a new character
-				_gameService.UpdatePlayer(player); // Add player to the game state.
+				_gameService.StartNewGame(); // Start a new game. If the user already has one it will be overwritten.
+				_gameService.CreateCharacter(player); // Add character to the game state.
 				_gameService.StartCombat(); // Start combat right away, for now.
 				return RedirectToAction("Game");
 			}
 			else {
 				return View();
 			}
+		}
+
+		[HttpGet]
+		public IActionResult Continue() {
+			return RedirectToAction("Game");
 		}
 
 		[HttpGet]
@@ -47,6 +54,15 @@ namespace PromptQuest.Controllers {
 			return Json(gameState);
 		}
 
+		[HttpGet]
+		public JsonResult GetGameSaveStatus() {
+			// This method feels misplaced here. Just used to check if the continue button needs to be enabled or not.
+			if(_gameService.DoesUserHaveSavedGame()) {
+				return Json(true);
+			}
+			return Json(false);
+		}
+
 		[HttpPost]
 		public IActionResult PlayerAction(string action) {
 			PQActionResult ActionResult = _gameService.ExecutePlayerAction(action);
@@ -54,9 +70,21 @@ namespace PromptQuest.Controllers {
 		}
 
 		[HttpPost]
-		public IActionResult EnemyAction(string action) {
+		public IActionResult EnemyAction() {
 			PQActionResult ActionResult = _gameService.ExecuteEnemyAction();
 			return Json(ActionResult);
+		}
+
+		[HttpPost]
+		public void StartCombat() {
+			_gameService.StartCombat();
+		}
+
+		[HttpPost]
+		public IActionResult Respawn()
+		{
+			_gameService.RespawnPlayer();
+			return Ok();
 		}
 	}
 }
